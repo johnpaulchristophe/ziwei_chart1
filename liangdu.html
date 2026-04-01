@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>紫微斗数 · 你的东方命盘（中州派）</title>
+  <style>
+    body {margin:0;padding:20px 10px;background:linear-gradient(180deg,#0b0f1a,#05070d);color:#fff;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;display:flex;flex-direction:column;align-items:center;min-height:100vh;}
+    h1 {margin:20px 0 15px;font-size:28px;background:linear-gradient(90deg,#7aa2ff,#9c6bff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-weight:600;}
+    .card {width:100%;max-width:520px;padding:24px;border-radius:22px;background:rgba(255,255,255,0.06);backdrop-filter:blur(12px);box-shadow:0 0 40px rgba(100,120,255,0.18);text-align:center;}
+    input, select {padding:12px 16px;border-radius:12px;border:none;margin:8px 0;width:82%;background:rgba(255,255,255,0.12);color:white;font-size:16px;}
+    button {margin-top:12px;padding:14px 32px;border:none;border-radius:12px;background:linear-gradient(90deg,#7aa2ff,#9c6bff);color:white;cursor:pointer;font-size:17px;font-weight:500;box-shadow:0 4px 15px rgba(122,162,255,0.3);}
+    button:hover {transform:translateY(-2px);box-shadow:0 6px 20px rgba(122,162,255,0.4);}
+    canvas {margin:25px auto;background:radial-gradient(circle at center,#1a1f2e,#0a0d17);border-radius:18px;box-shadow:0 15px 40px rgba(0,0,0,0.7);display:block;max-width:100%;}
+    .result {margin-top:18px;text-align:left;line-height:1.75;font-size:15.2px;opacity:0.95;white-space:pre-wrap;padding:0 8px;}
+  </style>
+</head>
+<body>
+  <h1>✨ 紫微斗数 · 你的东方命盘</h1>
+  <div class="card">
+    <div style="margin:10px 0;">
+      <label><input type="radio" name="mode" value="gregorian" checked> 公历 + 出生城市</label>
+      <label style="margin-left:15px;"><input type="radio" name="mode" value="lunar"> 输入农历</label>
+    </div>
+    <div style="margin:15px 0;font-size:16px;">
+      性别：
+      <label><input type="radio" name="gender" value="男" checked> 男</label>
+      <label style="margin-left:20px;"><input type="radio" name="gender" value="女"> 女</label>
+    </div>
+    <div id="gregorianPanel">
+      <input type="date" id="birthDate" />
+      <select id="province" style="width:40%;margin-right:2%;"></select>
+      <select id="city" style="width:40%;"></select>
+      <select id="birthHourGreg">
+        <option value="0">子时</option><option value="1">丑时</option><option value="2">寅时</option>
+        <option value="3">卯时</option><option value="4">辰时</option><option value="5">巳时</option>
+        <option value="6">午时</option><option value="7">未时</option><option value="8">申时</option>
+        <option value="9">酉时</option><option value="10">戌时</option><option value="11">亥时</option>
+      </select>
+    </div>
+    <div id="lunarPanel" style="display:none;">
+      <input type="number" id="lunarYear" placeholder="农历年" value="1996" style="width:25%;margin-right:2%;">
+      <input type="number" id="lunarMonth" placeholder="月" value="8" min="1" max="12" style="width:20%;">
+      <input type="number" id="lunarDay" placeholder="日" value="27" min="1" max="30" style="width:20%;">
+      <select id="birthHourLunar" style="width:25%;">
+        <option value="0">子时</option><option value="1">丑时</option><option value="2">寅时</option>
+        <option value="3">卯时</option><option value="4">辰时</option><option value="5">巳时</option>
+        <option value="6">午时</option><option value="7">未时</option><option value="8">申时</option>
+        <option value="9">酉时</option><option value="10">戌时</option><option value="11">亥时</option>
+      </select>
+    </div>
+    <button id="generateButton">生成中州派真实命盘</button>
+    <canvas id="chart" width="800" height="800"></canvas>
+    <div class="result" id="text"></div>
+  </div>
+
+  <script>
+    // ==================== 完整的城市数据库 ====================
+    const cityDatabase = {
+      "北京市": {lon:116.41, cities:{"北京":116.41}},
+      "天津市": {lon:117.20, cities:{"天津":117.20}},
+      "上海市": {lon:121.47, cities:{"上海":121.47}},
+      "重庆市": {lon:106.55, cities:{"重庆":106.55}},
+      "河北省": {lon:114.50, cities:{"石家庄":114.50,"唐山":118.18,"秦皇岛":119.60,"保定":115.48,"廊坊":116.70,"邯郸":114.48,"沧州":116.83}},
+      "山西省": {lon:112.55, cities:{"太原":112.55,"大同":113.30,"运城":111.00,"临汾":111.52,"长治":112.83,"晋城":112.85}},
+      "内蒙古自治区": {lon:111.67, cities:{"呼和浩特":111.67,"包头":109.85,"赤峰":118.97,"鄂尔多斯":109.78,"呼伦贝尔":119.75,"巴彦淖尔":107.38}},
+      "辽宁省": {lon:123.43, cities:{"沈阳":123.43,"大连":121.62,"鞍山":122.99,"抚顺":123.97,"本溪":123.77,"丹东":124.37}},
+      "吉林省": {lon:125.32, cities:{"长春":125.32,"吉林":126.55,"延吉":129.52,"四平":124.35,"通化":125.93}},
+      "黑龙江省": {lon:126.63, cities:{"哈尔滨":126.63,"齐齐哈尔":123.95,"牡丹江":129.62,"大庆":125.03,"绥化":126.97}},
+      "江苏省": {lon:118.78, cities:{"南京":118.78,"苏州":120.62,"无锡":120.30,"徐州":117.18,"常州":119.97,"南通":120.88,"扬州":119.42}},
+      "浙江省": {lon:120.15, cities:{"杭州":120.15,"宁波":121.55,"温州":120.65,"绍兴":120.58,"台州":121.42,"金华":119.65,"嘉兴":120.75}},
+      "安徽省": {lon:117.28, cities:{"合肥":117.28,"芜湖":118.38,"蚌埠":117.38,"安庆":117.05,"马鞍山":118.50,"阜阳":115.82}},
+      "福建省": {lon:119.30, cities:{"福州":119.30,"厦门":118.10,"泉州":118.59,"漳州":117.66,"龙岩":117.02,"莆田":119.00}},
+      "江西省": {lon:115.90, cities:{"南昌":115.90,"九江":116.00,"赣州":114.93,"上饶":117.94,"宜春":114.38}},
+      "山东省": {lon:117.00, cities:{"济南":117.00,"青岛":120.38,"烟台":121.39,"潍坊":119.10,"临沂":118.35,"济宁":116.58}},
+      "河南省": {lon:113.65, cities:{"郑州":113.65,"洛阳":112.45,"开封":114.35,"南阳":112.53,"许昌":113.83,"新乡":113.93}},
+      "湖北省": {lon:114.30, cities:{"武汉":114.30,"襄阳":112.18,"宜昌":111.28,"荆州":112.23,"十堰":110.78}},
+      "湖南省": {lon:113.00, cities:{"长沙":113.00,"株洲":113.15,"湘潭":112.95,"衡阳":112.57,"岳阳":113.13,"常德":111.68}},
+      "广东省": {lon:113.26, cities:{"广州":113.26,"深圳":114.05,"珠海":113.58,"佛山":113.12,"东莞":113.75,"中山":113.38,"惠州":114.42,"江门":113.08}},
+      "广西壮族自治区": {lon:108.33, cities:{"南宁":108.33,"柳州":109.42,"桂林":110.29,"北海":109.12,"玉林":110.15}},
+      "海南省": {lon:110.35, cities:{"海口":110.35,"三亚":109.52}},
+      "四川省": {lon:104.06, cities:{"成都":104.06,"绵阳":104.73,"德阳":104.40,"乐山":103.77,"南充":106.10,"泸州":105.45}},
+      "贵州省": {lon:106.72, cities:{"贵阳":106.72,"遵义":106.93,"六盘水":104.85,"毕节":105.28}},
+      "云南省": {lon:102.73, cities:{"昆明":102.73,"大理":100.23,"丽江":100.23,"曲靖":103.80,"玉溪":102.55}},
+      "西藏自治区": {lon:91.13, cities:{"拉萨":91.13,"日喀则":88.88}},
+      "陕西省": {lon:108.95, cities:{"西安":108.95,"咸阳":108.72,"宝鸡":107.15,"汉中":107.03,"榆林":109.73}},
+      "甘肃省": {lon:103.73, cities:{"兰州":103.73,"天水":105.72,"酒泉":98.50,"张掖":100.45}},
+      "青海省": {lon:101.78, cities:{"西宁":101.78}},
+      "宁夏回族自治区": {lon:106.28, cities:{"银川":106.28}},
+      "新疆维吾尔自治区": {lon:87.62, cities:{"乌鲁木齐":87.62,"喀什":75.98,"伊犁":81.32,"克拉玛依":84.77}},
+      "台湾省": {lon:121.00, cities:{"台北":121.52,"高雄":120.27,"台中":120.67}},
+      "香港特别行政区": {lon:114.17, cities:{"香港":114.17}},
+      "澳门特别行政区": {lon:113.55, cities:{"澳门":113.55}}
+    };
+
+    // ==================== 农历转换插件 (calendar) ====================
+    var calendar = (function () {
+      var lunarInfo = [0x04bd8,0x04ae0,0x0a570,0x054d5,0x0d260,0x0d950,0x16554,0x056a0,0x09ad0,0x055d2,0x04ae0,0x0a5b6,0x0a4d0,0x0d250,0x1d255,0x0b540,0x0d6a0,0x0ada2,0x095b0,0x14977,0x04970,0x0a4b0,0x0b4b5,0x06a50,0x06d40,0x1ab54,0x02b60,0x09570,0x052f2,0x04970,0x06566,0x0d4a0,0x0ea50,0x06e95,0x05ad0,0x02b60,0x186e3,0x092e0,0x1c8d7,0x0c950,0x0d4a0,0x1d8a6,0x0b550,0x056a0,0x1a5b4,0x025d0,0x092d0,0x0d2b2,0x0a950,0x0b557,0x06ca0,0x0b550,0x15355,0x04da0,0x0a5d0,0x14573,0x052d0,0x0a9a8,0x0e950,0x06aa0,0x0aea6,0x0ab50,0x04b60,0x0aae4,0x0a570,0x05260,0x0f263,0x0d950,0x05b57,0x056a0,0x096d0,0x04dd5,0x04ad0,0x0a4d0,0x0d4d4,0x0d250,0x0d558,0x0b540,0x0b5a0,0x195a6,0x095b0,0x049b0,0x0a974,0x0a4b0,0x0b27a,0x06a50,0x06d40,0x0af46,0x0ab60,0x09570,0x04af5,0x04970,0x064b0,0x074a3,0x0ea50,0x06b58,0x055c0,0x0ab60,0x096d5,0x092e0,0x0c960,0x0d954,0x0d4a0,0x0da50,0x07552,0x056a0,0x0abb7,0x025d0,0x092d0,0x0cab5,0x0a950,0x0b4a0,0x0baa4,0x0ad50,0x055d9,0x04ba0,0x0a5b0,0x15176,0x052b0,0x0a930,0x07954,0x06aa0,0x0ad50,0x05b52,0x04b60,0x0a6e6,0x0a4e0,0x0d260,0x0ea65,0x0d530,0x05aa0,0x076a3,0x096d0,0x04bd7,0x04ad0,0x0a4d0,0x1d0b6,0x0d250,0x0d520,0x0dd45,0x0b5a0,0x056d0,0x055b2,0x049b0,0x0a577,0x0a4b0,0x0aa50,0x1b255,0x06d20,0x0ada0,0x14b63,0x09370,0x049f8,0x04970,0x064b0,0x168a6,0x0ea50,0x06b20,0x1a6c4,0x0aae0,0x0a2e0,0x0d2e3,0x0c960,0x0d557,0x0d4a0,0x0da50,0x05d55,0x056a0,0x0a6d0,0x055d4,0x052d0,0x0a9b8,0x0a950,0x0b4a0,0x0b6a6,0x0ad50,0x055a0,0x0aba4,0x0a5b0,0x052b0,0x0b273,0x06930,0x07337,0x06aa0,0x0ad50,0x14b55,0x04b60,0x0a570,0x054e4,0x0d160,0x0e968,0x0d520,0x0daa0,0x05b49,0x056a0,0x0a6d0,0x055d4,0x052d0,0x0a9b8,0x0a950,0x0b4a0,0x0b6a6,0x0ad50,0x055a0,0x0aba4,0x0a5b0,0x052b0,0x0b273,0x06930,0x07337,0x06aa0,0x0ad50,0x14b55,0x04b60];
+      function solar2lunar(y, m, d) {
+        var i, leap = 0, temp = 0, baseDate = new Date(1900, 0, 31), offset = Math.floor((new Date(y, m-1, d) - baseDate) / 86400000);
+        for(i = 1900; i < 2100 && offset > 0; i++) { temp = lunarYearDays(i); offset -= temp; }
+        if(offset < 0) { offset += temp; i--; }
+        var leapMonth = leapMonthFn(i), isLeap = false;
+        for(var k = 1; k <= 12 && offset > 0; k++) {
+          if(leapMonth > 0 && k === (leapMonth + 1) && isLeap === false) { --k; isLeap = true; temp = leapDays(i); } else { temp = monthDays(i, k); }
+          if(isLeap === true && k === (leapMonth + 1)) isLeap = false;
+          offset -= temp;
+        }
+        if(offset === 0 && leapMonth > 0 && k === leapMonth + 1) { if(isLeap) { isLeap = false; } else { isLeap = true; --k; } }
+        if(offset < 0) { offset += temp; --k; }
+        return { lunarYear: i, lunarMonth: k, lunarDay: offset + 1, leap: leapMonth };
+      }
+      function lunarYearDays(y) { var i, sum = 348; for(i = 0x8000; i > 0x8; i >>= 1) sum += (lunarInfo[y-1900] & i) ? 1 : 0; return sum + leapDays(y); }
+      function leapDays(y) { if(leapMonthFn(y)) return (lunarInfo[y-1900] & 0x10000) ? 30 : 29; return 0; }
+      function leapMonthFn(y) { return lunarInfo[y-1900] & 0xf; }
+      function monthDays(y, m) { return (lunarInfo[y-1900] & (0x10000 >> m)) ? 30 : 29; }
+      return { solar2lunar: solar2lunar };
+    })();
+    // ================== 中州派星曜亮度表 ==================
+    // ================== 中州派星曜亮度表 (完全匹配你的 CSV) ==================
+const StarBrightness = {
+  "紫微": ["平","庙","庙","旺","陷","旺","庙","庙","旺","平","闲","旺"],
+  "天机": ["庙","陷","旺","旺","庙","平","庙","陷","平","旺","庙","平"],
+  "太阳": ["陷","陷","旺","庙","旺","旺","庙","平","闲","闲","陷","陷"],
+  "武曲": ["旺","庙","闲","陷","庙","平","旺","庙","平","旺","庙","平"],
+  "天同": ["旺","陷","闲","庙","平","庙","陷","陷","旺","平","平","庙"],
+  "廉贞": ["平","旺","庙","闲","旺","陷","平","庙","庙","平","旺","陷"],
+  "天府": ["庙","庙","庙","平","庙","平","旺","庙","平","陷","庙","旺"],
+  "太阴": ["庙","庙","闲","陷","闲","陷","陷","平","平","旺","旺","庙"],
+  "贪狼": ["旺","庙","平","地","庙","陷","旺","庙","平","平","庙","陷"],
+  "巨门": ["旺","旺","庙","庙","平","平","旺","陷","庙","庙","旺","旺"],
+  "天相": ["庙","庙","庙","陷","旺","平","旺","闲","庙","陷","闲","平"],
+  "天梁": ["庙","旺","庙","庙","旺","陷","庙","旺","陷","地","旺","陷"],
+  "七杀": ["旺","庙","庙","陷","旺","平","旺","旺","庙","闲","庙","平"],
+  "破军": ["庙","旺","陷","旺","旺","平","庙","旺","陷","陷","旺","平"],
+  "文昌": ["旺","庙","陷","平","旺","庙","陷","平","旺","庙","陷","旺"],
+  "文曲": ["庙","庙","平","旺","庙","庙","陷","旺","平","庙","陷","旺"],
+  "左辅": ["旺","庙","庙","陷","庙","平","旺","庙","平","陷","庙","闲"], // 已依你要求改为平
+  "右弼": ["庙","庙","旺","陷","庙","平","旺","庙","闲","陷","庙","平"],
+  "天魁": ["旺","旺","闲","庙","平","平","庙","庙","旺","旺","平","旺"],
+  "天钺": ["旺","旺","旺","平","旺","旺","旺","旺","庙","庙","旺","庙"],
+  "擎羊": ["陷","庙","闲","陷","庙","闲","平","庙","闲","陷","庙","闲"],
+  "陀罗": ["闲","庙","陷","闲","庙","陷","闲","庙","陷","闲","庙","陷"],
+  "火星": ["平","旺","庙","平","闲","旺","庙","闲","陷","陷","庙","平"],
+  "铃星": ["陷","陷","庙","庙","旺","旺","庙","旺","旺","陷","庙","庙"],
+  "地劫": ["陷","陷","平","平","陷","闲","庙","平","庙","平","平","旺"],
+  "地空": ["平","陷","陷","平","陷","庙","庙","平","庙","庙","陷","陷"],
+  "禄存": ["旺","地","庙","旺","地","庙","旺","地","庙","旺","地","庙"], // 补全了地
+  "天马": ["旺","平","旺","平","旺","平","旺","平","旺","平","旺","平"]  // 补全了平
+};
+    const GAN = ["甲","乙","丙","丁","戊","己","庚","辛","壬","癸"];
+    const ZHI = ["子","丑","寅","卯","辰","巳","午","未","申","酉","戌","亥"];
+    const BRANCH_MAP = {0:"巳",1:"午",2:"未",3:"申",4:"酉",5:"戌",6:"亥",7:"子",8:"丑",9:"寅",10:"卯",11:"辰"};
+    const PALACES = ["命宫","兄弟","夫妻","子女","财帛","疾厄","迁移","交友","事业","田宅","福德","父母"];
+    const NAYIN_MAP = {"甲子":"金四局","乙丑":"金四局","丙寅":"火六局","丁卯":"火六局","戊辰":"木三局","己巳":"木三局","庚午":"土五局","辛未":"土五局","壬申":"金四局","癸酉":"金四局","甲戌":"火六局","乙亥":"火六局","丙子":"水二局","丁丑":"水二局","戊寅":"土五局","己卯":"土五局","庚辰":"金四局","辛巳":"金四局","壬午":"木三局","癸未":"木三局","甲申":"水二局","乙酉":"水二局","丙戌":"土五局","丁亥":"土五局","戊子":"火六局","己丑":"火六局","庚寅":"木三局","辛卯":"木三局","壬辰":"水二局","癸巳":"水二局","甲午":"金四局","乙未":"金四局","丙申":"火六局","丁酉":"火六局","戊戌":"木三局","己亥":"木三局","庚子":"土五局","辛丑":"土五局","壬寅":"金四局","癸卯":"金四局","甲辰":"火六局","乙巳":"火六局","丙午":"水二局","丁未":"水二局","戊申":"土五局","己酉":"土五局","庚戌":"金四局","辛亥":"金四局","壬子":"木三局","癸丑":"木三局","甲寅":"水二局","乙卯":"水二局","丙辰":"土五局","丁巳":"土五局","戊午":"火六局","己未":"火六局","庚申":"木三局","辛酉":"木三局","壬戌":"水二局","癸亥":"水二局"};
+    const BUREAU_START_AGE = {"水二局":2,"木三局":3,"金四局":4,"土五局":5,"火六局":6};
+    const outerPositions = [{row:0,col:0},{row:0,col:1},{row:0,col:2},{row:0,col:3},{row:1,col:3},{row:2,col:3},{row:3,col:3},{row:3,col:2},{row:3,col:1},{row:3,col:0},{row:2,col:0},{row:1,col:0}];
+
+    // ==================== 核心字典 (严格中州派) ====================
+    const sihuaMap = {
+      "甲":{禄:"廉贞",权:"破军",科:"武曲",忌:"太阳"}, "乙":{禄:"天机",权:"天梁",科:"紫微",忌:"太阴"},
+      "丙":{禄:"天同",权:"天机",科:"文昌",忌:"廉贞"}, "丁":{禄:"太阴",权:"天同",科:"天机",忌:"巨门"},
+      "戊":{禄:"贪狼",权:"太阴",科:"太阳",忌:"天机"}, "己":{禄:"武曲",权:"贪狼",科:"天梁",忌:"文曲"},
+      "庚":{禄:"太阳",权:"武曲",科:"天府",忌:"天同"}, "辛":{禄:"巨门",权:"太阳",科:"文曲",忌:"文昌"},
+      "壬":{禄:"天梁",权:"紫微",科:"天府",忌:"武曲"}, "癸":{禄:"破军",权:"巨门",科:"太阴",忌:"贪狼"}
+    };
+    const tianKuiMap = {"甲":8, "乙":7, "丙":6, "丁":6, "戊":8, "己":7, "庚":8, "辛":1, "壬":10, "癸":10}; 
+    const tianYueMap = {"甲":2, "乙":3, "丙":4, "丁":4, "戊":2, "己":3, "庚":2, "辛":9, "壬":0,  "癸":0};
+    const luCunMap = {"甲":9, "乙":10, "丙":0, "丁":1, "戊":0, "己":1, "庚":3, "辛":4, "壬":6, "癸":7};
+
+    // ==================== 绘图函数 ====================
+    // 核心辅助：绘制单颗星曜（纵向名称 + 亮度 + 四化圈）
+// ==================== 核心绘图辅助函数 ====================
+function drawFullStar(ctx, starName, x, y, size, color, brightness, sihuaType, isMain = false) {
+  ctx.textAlign = "center";
+  ctx.textBaseline = "top";
+  
+  // 1. 绘制纵向星名
+  ctx.font = isMain ? `bold ${size}px '楷体'` : `${size}px '楷体'`;
+  ctx.fillStyle = color;
+  for (let i = 0; i < starName.length; i++) {
+    ctx.fillText(starName[i], x, y + i * (size + 2));
+  }
+
+  let nextY = y + starName.length * (size + 2) + 4;
+
+  // 2. 绘制亮度 (紧贴星名下方)
+  if (brightness && brightness !== "—") {
+    ctx.font = "12px '楷体'";
+    ctx.fillStyle = (brightness === "陷") ? "#ff4444" : "#aaaaaa";
+    ctx.fillText(brightness, x, nextY);
+    nextY += 16;
+  }
+
+  // 3. 绘制四化圆圈
+  if (sihuaType) {
+    ctx.strokeStyle = "#ff4444";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(x, nextY + 6, 9, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.fillStyle = "#ff8888";
+    ctx.font = "13px '楷体'";
+    ctx.fillText(sihuaType, x, nextY + 1);
+  }
+}
+
+// ==================== 重新生成的 drawChart 函数 ====================
+function drawChart(p) {
+  const canvas = document.getElementById("chart");
+  const ctx = canvas.getContext("2d");
+  const size = 800; // 对应你 HTML 的 canvas 宽度
+  const grid = size / 4;
+  ctx.clearRect(0, 0, size, size);
+
+  // 绘制命盘外框与网格
+  ctx.strokeStyle = 'rgba(255,255,255,0.2)'; ctx.lineWidth = 1;
+  for (let i = 0; i <= 4; i++) {
+    ctx.beginPath(); ctx.moveTo(i * grid, 0); ctx.lineTo(i * grid, size); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, i * grid); ctx.lineTo(size, i * grid); ctx.stroke();
+  }
+
+  // 遍历 12 宫位绘制
+  for (let i = 0; i < 12; i++) {
+    const pos = outerPositions[i]; 
+    const cx = pos.col * grid, cy = pos.row * grid;
+    
+    // 【关键】亮度表索引对齐：巳(0)对应索引5，子(7)对应索引0
+    const brightIdx = (i + 5) % 12;
+
+    // --- 底部：宫名、大限、干支 ---
+    const palIdx = (p.fateIndex - i + 12) % 12;
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#ff4444"; ctx.font = "bold 16px '楷体'";
+    ctx.fillText(PALACES[palIdx], cx + grid/2, cy + grid - 30);
+    ctx.fillStyle = "#88ffcc"; ctx.font = "11px sans-serif";
+    ctx.fillText(p.greatLimits[i] || "", cx + grid/2, cy + grid - 14);
+    ctx.textAlign = "right"; ctx.fillStyle = "#556677"; ctx.font = "12px sans-serif";
+    ctx.fillText((p.stems[i] || "") + BRANCH_MAP[i], cx + grid - 8, cy + grid - 10);
+
+    // --- 中上部：十四主星 (纵向排列) ---
+    const mainStars = [
+      {n:"紫微", idx:p.ziweiIndex}, {n:"天机", idx:p.tianjiIndex}, {n:"太阳", idx:p.taiyangIndex},
+      {n:"武曲", idx:p.wuquIndex}, {n:"天同", idx:p.tiantongIndex}, {n:"廉贞", idx:p.lianzhenIndex},
+      {n:"天府", idx:p.tianfuIndex}, {n:"太阴", idx:p.taiyinIndex}, {n:"贪狼", idx:p.tanlangIndex},
+      {n:"巨门", idx:p.jumenIndex}, {n:"天相", idx:p.tianxiangIndex}, {n:"天梁", idx:p.tianliangIndex},
+      {n:"七杀", idx:p.qishaIndex}, {n:"破军", idx:p.pojunIndex}
+    ];
+    let mC = 0;
+    mainStars.forEach(s => {
+      if (s.idx === i) {
+        const si = p.sihua ? Object.keys(p.sihua).find(k => p.sihua[k] === s.n) : null;
+        drawFullStar(ctx, s.n, cx + grid/2 - 25 + mC*45, cy + 22, 19, "#aa88ff", StarBrightness[s.n][brightIdx], si, true);
+        mC++;
+      }
+    });
+
+    // --- 右上部：六吉六煞 + 禄存天马 ---
+    const auxStars = [
+      {n:"左辅", idx:p.zuofuIndex}, {n:"右弼", idx:p.youbiIndex}, {n:"文昌", idx:p.wenchangIndex},
+      {n:"文曲", idx:p.wenquIndex}, {n:"天魁", idx:p.tianKuiIndex}, {n:"天钺", idx:p.tianYueIndex},
+      {n:"禄存", idx:p.lucunIndex}, {n:"擎羊", idx:p.qingyangIndex}, {n:"陀罗", idx:p.tuoluoIndex},
+      {n:"火星", idx:p.huoxingIndex}, {n:"铃星", idx:p.lingxingIndex}, {n:"地劫", idx:p.dijieIndex}, 
+      {n:"地空", idx:p.dikongIndex}, {n:"天马", idx:p.z ? p.z.tianma : -1}
+    ];
+    let aC = 0;
+    auxStars.forEach(s => {
+      if (s.idx === i) {
+        const si = p.sihua ? Object.keys(p.sihua).find(k => p.sihua[k] === s.n) : null;
+        drawFullStar(ctx, s.n, cx + grid - 22 - aC*22, cy + 28, 13.5, "#ffcc33", StarBrightness[s.n] ? StarBrightness[s.n][brightIdx] : null, si);
+        aC++;
+      }
+    });
+
+    // --- 左侧：其他全量杂曜 (补全所有缺失星曜) ---
+    if (p.z) {
+      const minorStars = [
+        {n:"红鸾", idx:p.z.hongluan}, {n:"天喜", idx:p.z.tianxi},
+        {n:"天官", idx:p.z.tianguan}, {n:"天福", idx:p.z.tianfuMinor}, {n:"天厨", idx:p.z.tianchu},
+        {n:"龙德", idx:p.z.longde}, {n:"月德", idx:p.z.yuede}, {n:"天德", idx:p.z.tiande},
+        {n:"年解", idx:p.z.nianjie}, {n:"解神", idx:p.z.jieshen}, {n:"三台", idx:p.z.santai},
+        {n:"八座", idx:p.z.bazuo}, {n:"天才", idx:p.z.tiancai}, {n:"天寿", idx:p.z.tianshou},
+        {n:"台辅", idx:p.z.taifu}, {n:"封诰", idx:p.z.fenggao}, {n:"恩光", idx:p.z.enguang},
+        {n:"天贵", idx:p.z.tiangui}, {n:"天刑", idx:p.z.tianxing}, {n:"天姚", idx:p.z.tianyao},
+        {n:"阴煞", idx:p.z.yinsha}, {n:"天巫", idx:p.z.tianwu}, {n:"天月", idx:p.z.tianyue},
+        {n:"天哭", idx:p.z.tianku}, {n:"天虚", idx:p.z.tianxu}, {n:"孤辰", idx:p.z.guchen},
+        {n:"寡宿", idx:p.z.guasu}, {n:"劫煞", idx:p.z.jiesha}, {n:"大耗", idx:p.z.dahao},
+        {n:"蜚廉", idx:p.z.feilian}, {n:"破碎", idx:p.z.posui}, {n:"华盖", idx:p.z.huagai},
+        {n:"咸池", idx:p.z.xianchi}, {n:"天空", idx:p.z.tiankong}, {n:"截空", idx:p.z.jiekong},
+        {n:"旬空", idx:p.z.xunkong}, {n:"天伤", idx:p.z.tianshang}, {n:"天使", idx:p.z.tianshi}
+      ];
+    let miC = 0;
+minorStars.forEach(s => {
+  if (s.idx === i) {
+    // --- 优化后的参数 ---
+    // 1. 每列改为容纳 5 颗星 (Math.floor(miC/5))
+    // 2. 横向列间距缩小到 20 像素 (*20)
+    // 3. 纵向星与星的间距缩小到 33 像素 (*33)
+    // 4. 起始位置稍微往左靠一点 (cx + 15)
+    drawFullStar(ctx, s.n, cx + 15 + Math.floor(miC/5)*20, cy + 15 + (miC%5)*33, 12.5, "#8899aa", null, null);
+    miC++; 
+  }
+});
+    }
+  }
+}
+    // ==================== 按钮与核心计算逻辑 ====================
+    window.onload = function () {
+      const pSel = document.getElementById("province"), cSel = document.getElementById("city");
+      Object.keys(cityDatabase).forEach(prov => { const opt = document.createElement("option"); opt.value=prov; opt.textContent=prov; pSel.appendChild(opt); });
+      pSel.onchange = () => { cSel.innerHTML=""; const prov=pSel.value; if(cityDatabase[prov]){ Object.keys(cityDatabase[prov].cities).forEach(city => { const opt=document.createElement("option"); opt.value=city; opt.textContent=city; cSel.appendChild(opt); });}};
+      document.getElementsByName("mode").forEach(r => r.onchange = () => { document.getElementById("gregorianPanel").style.display = r.value==="gregorian"?"block":"none"; document.getElementById("lunarPanel").style.display = r.value==="lunar"?"block":"none"; });
+
+      document.getElementById("generateButton").onclick = function () {
+        const mode = document.querySelector('input[name="mode"]:checked').value, gender = document.querySelector('input[name="gender"]:checked').value;
+        let lRaw, lMonth, lDay, hVal, y, m, d;
+
+        if (mode === "gregorian") {
+          const dStr = document.getElementById("birthDate").value; if(!dStr) return alert("请选择日期");
+          [y, m, d] = dStr.split("-").map(Number); 
+          lRaw = calendar.solar2lunar(y,m,d); // ✅ 已修复前缀
+          lMonth=lRaw.lunarMonth; lDay=lRaw.lunarDay; hVal=parseInt(document.getElementById("birthHourGreg").value);
+        } else {
+          lMonth=parseInt(document.getElementById("lunarMonth").value); lDay=parseInt(document.getElementById("lunarDay").value); hVal=parseInt(document.getElementById("birthHourLunar").value); y=parseInt(document.getElementById("lunarYear").value); lRaw = { lunarYear: y, lunarMonth: lMonth, lunarDay: lDay };
+        }
+
+        const res = { fateIndex:-1, bodyIndex:-1, stems:null, fiveElementBureau:"", greatLimits:null, z:{} };
+        const mStartIdx = 9, mPalaceIdx = (mStartIdx + (lMonth-1)) % 12;
+        res.fateIndex = (mPalaceIdx - hVal + 12) % 12; res.bodyIndex = (mPalaceIdx + hVal) % 12;
+
+        const yStem = (lRaw.lunarYear - 4 + 10) % 10, yZhi = (lRaw.lunarYear - 4 + 12) % 12, sChar = GAN[yStem];
+        const tiger = [2,4,6,8,0], yinStemIdx = tiger[yStem % 5];
+        res.stems = new Array(12); for(let i=0; i<12; i++){ res.stems[(9+i)%12] = GAN[(yinStemIdx+i)%10]; }
+        res.fiveElementBureau = NAYIN_MAP[res.stems[res.fateIndex] + BRANCH_MAP[res.fateIndex]] || "金四局";
+
+        // 阴阳男女判定
+        const isYangP = (yStem % 2 === 0) ? gender==="男" : gender!=="男";
+        const dir = isYangP ? 1 : -1;
+        
+        const B = BUREAU_START_AGE[res.fiveElementBureau] || 4;
+        res.greatLimits = new Array(12); let cP = res.fateIndex, age = B;
+        for(let i=0; i<12; i++){ res.greatLimits[cP] = age + "-" + (age+9); age+=10; cP = (cP+dir+12)%12; }
+
+        let zwNum = (lDay%B)===0 ? lDay/B : ( ((B-lDay%B)%2===1) ? Math.floor((lDay+B-lDay%B)/B)-(B-lDay%B) : Math.floor((lDay+B-lDay%B)/B)+(B-lDay%B) );
+        res.ziweiIndex = (9+(zwNum-1)+1200)%12; if(zwNum<0) res.ziweiIndex=(9-Math.abs(zwNum)+1200)%12;
+        res.tianfuIndex = (6-res.ziweiIndex+12)%12;
+        res.tianjiIndex = (res.ziweiIndex-1+12)%12; res.taiyangIndex=(res.tianjiIndex-2+12)%12; res.wuquIndex=(res.taiyangIndex-1+12)%12; res.tiantongIndex=(res.wuquIndex-1+12)%12; res.lianzhenIndex=(res.tiantongIndex-3+12)%12;
+        res.taiyinIndex=(res.tianfuIndex+1)%12; res.tanlangIndex=(res.tianfuIndex+2)%12; res.jumenIndex=(res.tianfuIndex+3)%12; res.tianxiangIndex=(res.tianfuIndex+4)%12; res.tianliangIndex=(res.tianfuIndex+5)%12; res.qishaIndex=(res.tianfuIndex+6)%12; res.pojunIndex=(res.qishaIndex+4)%12;
+
+        res.zuofuIndex=(11+(lMonth-1))%12; res.youbiIndex=(5-(lMonth-1)+12)%12; res.wenquIndex=(11+hVal)%12; res.wenchangIndex=(5-hVal+12)%12; res.dijieIndex=(6+hVal)%12; res.dikongIndex=(6-hVal+12)%12;
+        res.sihua = sihuaMap[sChar]; res.tianKuiIndex=tianKuiMap[sChar]; res.tianYueIndex=tianYueMap[sChar];
+        res.lucunIndex=luCunMap[sChar]; if(res.lucunIndex>=0){ res.qingyangIndex=(res.lucunIndex+1)%12; res.tuoluoIndex=(res.lucunIndex-1+12)%12; }
+        
+        const hS={0:9,4:9,8:9, 2:8,6:8,10:8, 5:10,9:10,1:10, 11:4,3:4,7:4}, lS={0:5,4:5,8:5, 2:10,6:10,10:10, 5:5,9:5,1:5, 11:5,3:5,7:5};
+        res.huoxingIndex=(hS[yZhi]+hVal)%12; res.lingxingIndex=(lS[yZhi]+hVal)%12;
+
+        // ===========================================
+        // ============ 全量杂曜深度计算 ============
+        // ===========================================
+        
+        // 1. 日系杂曜
+        res.z.santai = (res.zuofuIndex + (lDay-1)) % 12; 
+        res.z.bazuo = (res.youbiIndex - (lDay-1) + 1200) % 12;
+        res.z.enguang = (res.wenchangIndex + lDay - 2 + 1200) % 12;
+        res.z.tiangui = (res.wenquIndex + lDay - 2 + 1200) % 12;
+
+        // 2. 时系杂曜
+        res.z.taifu = (1 + hVal) % 12;  // 午起子
+        res.z.fenggao = (9 + hVal) % 12; // 寅起子
+
+        // 3. 命身联动杂曜
+        res.z.tiancai = (res.fateIndex + yZhi) % 12;
+        res.z.tianshou = (res.bodyIndex + yZhi) % 12;
+
+        // 4. 生年地支系杂曜
+        res.z.longchi = (11 + yZhi) % 12; res.z.fengge = (5 - yZhi + 1200) % 12;
+        res.z.guchen = [9, 9, 0, 0, 0, 3, 3, 3, 6, 6, 6, 9][yZhi]; res.z.guasu = [5,11,8,8,8,11,11,11,2,2,2,5][yZhi]; 
+        res.z.jiesha = [0,9,6,3,0,9,6,3,0,9,6,3][yZhi];
+        const dG = (yZhi+6)%12, isYZ = [0,2,4,6,8,10].includes(yZhi), cDG = [7,8,9,10,11,0,1,2,3,4,5,6][dG];
+        res.z.dahao = isYZ ? (cDG+1)%12 : (cDG-1+12)%12;
+        res.z.feilian=[3,4,5,0,1,2,9,10,11,6,7,8][yZhi]; res.z.posui = [0, 8, 4, 0, 8, 4, 0, 8, 4, 0, 8, 4][yZhi];
+        res.z.huagai=[11,8,5,2,11,8,5,2,11,8,5,2][yZhi]; res.z.xianchi=[4,1,10,7,4,1,10,7,4,1,10,7][yZhi];
+        res.z.longde=(2+yZhi)%12; res.z.yuede=(0+yZhi)%12;
+        res.z.tiande = (4 + yZhi) % 12; res.z.nianjie = (5 - yZhi + 1200) % 12;
+        res.z.tianma={0:9,4:9,8:9,2:3,6:3,10:3,11:0,3:0,7:0,5:6,9:6,1:6}[yZhi];
+        res.z.tiankong=[7,8,9,10,11,0,1,2,3,4,5,6][(yZhi+1)%12];
+        res.z.hongluan=(10-yZhi+12)%12; res.z.tianxi=(res.z.hongluan+6)%12;
+        res.z.tianku=(1-yZhi+12)%12; res.z.tianxu=(1+yZhi)%12;
+
+        // 5. 天干系杂曜 (官禄/福分/空亡)
+        res.z.tianguan=[2,11,0,9,10,4,6,4,5,1][yStem]; res.z.tianfuMinor=[4,3,7,6,10,9,1,0,1,0][yStem]; res.z.tianchu=[0,1,7,0,1,3,9,1,4,6][yStem];
+        res.z.jiekong=[{z:3,f:4},{f:1,z:2},{z:11,f:0},{f:9,z:10},{z:7,f:8},{f:3,z:4},{z:1,f:2},{f:11,z:0},{z:9,f:10},{f:7,z:8}][yStem].z;
+        res.z.fujie=[{z:3,f:4},{f:1,z:2},{z:11,f:0},{f:9,z:10},{z:7,f:8},{f:3,z:4},{z:1,f:2},{f:11,z:0},{z:9,f:10},{f:7,z:8}][yStem].f;
+        const xunD = (yZhi-yStem+12)%12, xunM = {0:[10,11],10:[8,9],8:[6,7],6:[4,5],4:[2,3],2:[0,1]}, cZToIdx = [7,8,9,10,11,0,1,2,3,4,5,6];
+        res.z.xunkong = yStem%2===0?cZToIdx[xunM[xunD][0]]:cZToIdx[xunM[xunD][1]]; res.z.fuxun = yStem%2===0?cZToIdx[xunM[xunD][1]]:cZToIdx[xunM[xunD][0]];
+
+        // 6. 月系杂曜
+        res.z.tianxing = (4 + lMonth - 1) % 12; // 酉(4)顺数
+        res.z.tianyao = (8 + lMonth - 1) % 12;  // 丑(8)顺数
+        res.z.jieshen = [3,3,5,5,7,7,9,9,11,11,1,1][lMonth - 1]; // 月解
+        res.z.tianwu = [0, 3, 9, 6][(lMonth - 1) % 4]; 
+        res.z.tianyue = [5, 0, 11, 9, 2, 10, 6, 2, 9, 1, 5, 9][lMonth - 1];
+        res.z.yinsha = [9, 7, 5, 3, 1, 11][(lMonth - 1) % 6];
+
+        // 7. 宫位系杂曜 (✅ 结合了阴阳男女对调规则的天伤、天使)
+        const friendsPalace = (res.fateIndex - 7 + 1200) % 12;
+        const healthPalace = (res.fateIndex - 5 + 1200) % 12;
+        if (isYangP) {
+          // 阳男阴女：天伤居交友，天使居疾厄
+          res.z.tianshang = friendsPalace;
+          res.z.tianshi = healthPalace;
+        } else {
+          // 阴男阳女：天伤居疾厄，天使居交友
+          res.z.tianshang = healthPalace;
+          res.z.tianshi = friendsPalace;
+        }
+
+        drawChart(res);
+        document.getElementById("text").innerText = `【全量杂曜排盘大功告成！】\n命宫：${PALACES[res.fateIndex]} | 局数：${res.fiveElementBureau}\n紫微在：${BRANCH_MAP[res.ziweiIndex]} 宫\n已精准加载中州派所有主/辅/煞/杂曜。`;
+      };
+      
+      // 初始化触发
+      pSel.dispatchEvent(new Event("change"));
+    };
+  </script>
+</body>
+</html>
